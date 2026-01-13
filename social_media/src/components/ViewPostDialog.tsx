@@ -1,11 +1,14 @@
+"use client";
+
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore"; // Sử dụng onSnapshot để cập nhật Realtime
 import { db } from "@/lib/firebase";
 import { PostCard } from "@/components/posts/PostCard";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Loader2 } from "lucide-react";
 import type { Post } from "@/types/post";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"; // Để ẩn Title cho đúng chuẩn Accessibility
 
 export function ViewPostDialog({ postId }: { postId: string }) {
     const [post, setPost] = useState<Post | null>(null);
@@ -13,42 +16,63 @@ export function ViewPostDialog({ postId }: { postId: string }) {
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
+        let unsubscribe: () => void;
+
         if (open && postId) {
-            const fetchPost = async () => {
-                setLoading(true);
-                try {
-                    const docRef = doc(db, "posts", postId);
-                    const docSnap = await getDoc(docRef);
+            setLoading(true);
+            const docRef = doc(db, "posts", postId);
+            
+            unsubscribe = onSnapshot(docRef, 
+                (docSnap) => {
                     if (docSnap.exists()) {
                         setPost({ id: docSnap.id, ...docSnap.data() } as Post);
+                    } else {
+                        setPost(null);
                     }
-                } catch (error) {
+                    setLoading(false);
+                }, 
+                (error) => {
                     console.error("Error fetching post:", error);
-                } finally {
                     setLoading(false);
                 }
-            };
-            fetchPost();
+            );
         }
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [open, postId]);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                    <ExternalLink size={14} className="mr-1" /> View
+                <Button variant="outline" size="sm" className="rounded-full shadow-sm hover:bg-secondary">
+                    <ExternalLink size={14} className="mr-2" /> View
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg p-0 bg-transparent border-none shadow-none">
+            
+            <DialogContent className="max-w-lg p-0 bg-transparent border-none shadow-none sm:max-w-xl">
+                <VisuallyHidden>
+                    <DialogTitle>View Post Detail</DialogTitle>
+                </VisuallyHidden>
+
                 {loading ? (
-                    <div className="flex justify-center p-10 bg-background rounded-xl">
-                        <Loader2 className="animate-spin text-blue-500" />
+                    <div className="flex justify-center p-20 bg-card/50 backdrop-blur-md rounded-3xl border border-border/50">
+                        <Loader2 className="animate-spin text-blue-500 h-8 w-8" />
                     </div>
                 ) : post ? (
-                    <PostCard post={post} />
+                    <div className="animate-in fade-in zoom-in duration-300">
+                        <PostCard post={post} />
+                    </div>
                 ) : (
-                    <div className="p-10 bg-background rounded-xl text-center">
-                        Post not found or has been deleted.
+                    <div className="p-10 bg-card rounded-2xl text-center border border-border/50 shadow-xl">
+                        <p className="text-muted-foreground">Post not found or has been deleted.</p>
+                        <Button 
+                            variant="link" 
+                            onClick={() => setOpen(false)}
+                            className="mt-2 text-blue-500"
+                        >
+                            Close
+                        </Button>
                     </div>
                 )}
             </DialogContent>
