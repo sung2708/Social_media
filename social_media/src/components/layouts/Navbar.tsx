@@ -12,10 +12,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useLocation } from "react-router-dom";
 
 export default function Navbar() {
     const { theme, setTheme } = useTheme();
     const { user, logout } = useAuth();
+    const location = useLocation();
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur shadow-md">
@@ -51,7 +53,7 @@ export default function Navbar() {
                             <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuLabel className="font-normal">
                                     <div className="flex flex-col space-y-1">
-                                        <p className="text-sm font-medium leading-none">{user.displayName || "User"}</p>
+                                        <p className="text-sm font-medium leading-none">{user.email?.split('@')[0] || "User"}</p>
                                         <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                                     </div>
                                 </DropdownMenuLabel>
@@ -67,7 +69,7 @@ export default function Navbar() {
                         </DropdownMenu>
                     ) : (
                         <Button asChild variant="default" size="sm">
-                            <Link to="/login">Login</Link>
+                            <Link to="/login" state={{ from: location }} replace>Login</Link>
                         </Button>
                     )}
                     <Button variant="ghost" size="icon" className="md:hidden">

@@ -1,207 +1,245 @@
 import { useState, useEffect } from "react";
-import { Heart, MessageCircle, User, Send } from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import {
+    Heart, MessageCircle, User, Send, CheckCircle2,
+    Bookmark
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Post } from "@/types/post";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { db } from "@/lib/firebase";
-import type { Comment } from "@/types/comment";
-
-import {
-    doc, updateDoc, increment, arrayUnion, arrayRemove,
-    collection, addDoc, serverTimestamp, query, orderBy, onSnapshot
-} from "firebase/firestore";
-import { cn } from "@/lib/utils";
 import { useShowToast } from "@/hooks/useToast";
+import type { Post } from "@/types/post";
+import type { Comment } from "@/types/comment";
+import {
+    doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc,
+    collection, addDoc, serverTimestamp, query, orderBy, onSnapshot,
+    setDoc, deleteDoc
+} from "firebase/firestore";
 
-
-type ToDateObject = { toDate: () => Date };
-
-function isToDateObject(obj: unknown): obj is ToDateObject {
-    return typeof obj === 'object' && obj !== null && typeof (obj as ToDateObject).toDate === 'function';
-}
 
 export function PostCard({ post }: { post: Post }) {
     const { user } = useAuth();
+    const toast = useShowToast();
     const [likesCount, setLikesCount] = useState(post.likes || 0);
-
-    const isLiked = user?.uid ? post.likedBy?.includes(user.uid) : false;
-
     const [showComments, setShowComments] = useState(false);
     const [commentText, setCommentText] = useState("");
     const [comments, setComments] = useState<Comment[]>([]);
-    const toast = useShowToast();
+    const [isBookmarked, setIsBookmarked] = useState(false);
+
+    const isLiked = user?.uid ? post.likedBy?.includes(user.uid) : false;
 
     useEffect(() => {
         if (!showComments) return;
-
-        const q = query(
-            collection(db, "posts", post.id, "comments"),
-            orderBy("createdAt", "asc")
-        );
-
+        const q = query(collection(db, "posts", post.id, "comments"), orderBy("createdAt", "asc"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment)));
         });
-
         return () => unsubscribe();
     }, [showComments, post.id]);
 
-    const handleLike = async () => {
+    useEffect(() => {
+        const checkBookmarkStatus = async () => {
+            if (!user) return;
+            const bookmarkRef = doc(db, "users", user.uid, "bookmarks", post.id);
+            const docSnap = await getDoc(bookmarkRef);
+            if (docSnap.exists()) {
+                setIsBookmarked(true);
+            }
+        };
+        checkBookmarkStatus();
+    }, [user, post.id]);
+
+    const handleBookmark = async () => {
         if (!user) {
             toast({
-                title: "Login Required",
-                description: "You need to log in to like posts!",
-                variant: "destructive",
+                title: "Login required",
+                description: "You need to log in to bookmark posts!",
+                variant: "destructive"
             });
             return;
         }
+        const bookmarkRef = doc(db, "users", user.uid, "bookmarks", post.id);
 
+        try {
+            if (isBookmarked) {
+                await deleteDoc(bookmarkRef);
+                setIsBookmarked(false);
+                toast({ title: "Unbookmarked", description: "Removed from your bookmarks." });
+            } else {
+                await setDoc(bookmarkRef, {
+                    postId: post.id,
+                    title: post.title,
+                    imageUrl: post.imageUrl || "",
+                    savedAt: serverTimestamp(),
+                });
+                setIsBookmarked(true);
+                toast({ title: "Bookmarked", description: "Added to your bookmarks." });
+            }
+        } catch (error) {
+            console.error("Bookmark error:", error);
+            toast({ title: "Error", description: "Unable to perform this action.", variant: "destructive" });
+        }
+    }
+
+    const handleLike = async () => {
+        if (!user) {
+            toast({ title: "Login required", description: "You need to log in to like posts!", variant: "destructive" });
+            return;
+        }
         const postRef = doc(db, "posts", post.id);
         const newLikedState = !isLiked;
-
         setLikesCount(prev => newLikedState ? prev + 1 : prev - 1);
-
         try {
             await updateDoc(postRef, {
                 likes: increment(newLikedState ? 1 : -1),
                 likedBy: newLikedState ? arrayUnion(user.uid) : arrayRemove(user.uid)
             });
         } catch (error) {
+            console.error("Error updating likes:", error);
             setLikesCount(post.likes || 0);
-            console.error("Like error:", error);
         }
     };
 
     const handleSendComment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!commentText.trim() || !user) return;
-
         try {
             const commentData = {
                 text: commentText,
                 userId: user.uid,
-                userName: user.displayName || user.email?.split('@')[0] || "User",
+                userName: user.displayName || "User",
                 userAvatar: user.photoURL || "",
                 createdAt: serverTimestamp(),
             };
-
             await addDoc(collection(db, "posts", post.id, "comments"), commentData);
-            await updateDoc(doc(db, "posts", post.id), {
-                commentsCount: increment(1)
-            });
-
+            await updateDoc(doc(db, "posts", post.id), { commentsCount: increment(1) });
             setCommentText("");
-        } catch (error) {
-            console.error("Comment error:", error);
-        }
+        } catch (error) { console.error(error); }
     };
-
     return (
-        <Card className="w-full mb-6 overflow-hidden border-none shadow-md bg-card text-card-foreground">
-            <CardHeader className="flex flex-row items-center gap-3 p-4">
-                <Avatar className="h-9 w-9">
-                    <AvatarImage src={post.authorAvatarUrl} />
-                    <AvatarFallback><User size={18} /></AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col">
-                    <span className="text-sm font-semibold">{post.authorName}</span>
-                    <span className="text-xs text-muted-foreground">
-                        {isToDateObject(post.createdAt)
-                            ? post.createdAt.toDate().toLocaleString('vi-VN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                            })
-                            : "Just now"}
-                    </span>
+        <Card className="max-w-lg w-full border-border/50 bg-card/80 backdrop-blur-sm transition-all hover:bg-card mb-6 overflow-hidden">
+
+            <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+                <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10 border-2 border-primary/20 transition-transform hover:scale-105">
+                        <AvatarImage src={post.authorAvatarUrl} alt={post.authorName} className="object-cover" />
+                        <AvatarFallback className="bg-secondary text-secondary-foreground">
+                            {post.authorName?.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-1">
+                            <span className="font-semibold text-foreground hover:underline cursor-pointer">{post.authorName}</span>
+                            <CheckCircle2 className="w-3 h-3 text-white fill-blue-500" strokeWidth={3} />
+                        </div>
+                        <span className="text-xs text-muted-foreground leading-none mt-1">
+                            @{post.authorName?.toLowerCase().replace(/\s+/g, '')} · {
+                                post.createdAt
+                                    ? (typeof post.createdAt.toDate === 'function'
+                                        ? post.createdAt.toDate()
+                                        : new Date(
+                                            typeof post.createdAt === 'string' || typeof post.createdAt === 'number'
+                                                ? post.createdAt
+                                                : ""
+                                        )
+                                    ).toLocaleString('vi-VN', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })
+                                    : "Now"
+                            }
+                        </span>
+                    </div>
                 </div>
             </CardHeader>
 
-            <CardContent className="p-0">
-                <div className="px-4 pb-2">
-                    <h3 className="font-bold text-lg mb-1">{post.title}</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{post.content}</p>
-                </div>
+            <CardContent className="pb-3">
+                {post.title && <h3 className="font-bold text-lg mb-1 text-foreground">{post.title}</h3>}
+                <p className="text-foreground leading-relaxed text-[15px] whitespace-pre-wrap">{post.content}</p>
+
                 {post.imageUrl && (
-                    <div className="mt-2 bg-muted flex items-center justify-center overflow-hidden">
+                    <div className="mt-3 overflow-hidden rounded-xl border border-border/50">
                         <img
                             src={post.imageUrl}
                             alt="Post content"
-                            className="w-full h-auto max-h-125 object-contain"
+                            className="h-auto w-full object-cover transition-transform duration-500 hover:scale-105"
                         />
                     </div>
                 )}
             </CardContent>
 
-            <CardFooter className="flex flex-col border-t mt-2 p-0">
-                <div className="flex justify-between w-full p-2 px-4">
+            <CardFooter className="flex items-center justify-between border-t border-border/50 pt-3 px-4 pb-4">
+                <div className="flex items-center gap-1">
                     <Button
                         variant="ghost"
                         size="sm"
+                        className={cn("gap-2 transition-colors rounded-full", isLiked ? "text-red-500 hover:text-red-400 hover:bg-red-500/10" : "text-muted-foreground hover:text-foreground")}
                         onClick={handleLike}
-                        className={cn("flex gap-2 transition-colors", isLiked && "text-red-500 hover:text-red-600")}
                     >
-                        <Heart size={18} className={cn(isLiked && "fill-current")} />
-                        <span>{likesCount}</span>
+                        <Heart className={cn("h-4 w-4", isLiked && "fill-current")} />
+                        <span className="text-sm font-medium">{likesCount}</span>
                     </Button>
+
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="flex gap-2"
+                        className="gap-2 text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 rounded-full"
                         onClick={() => setShowComments(!showComments)}
                     >
-                        <MessageCircle size={18} />
-                        <span>{post.commentsCount || 0}</span>
+                        <MessageCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">{post.commentsCount || 0}</span>
                     </Button>
                 </div>
 
-                {showComments && (
-                    <div className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-t space-y-4">
-                        <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                            {comments.map((cmt) => (
-                                <div key={cmt.id} className="flex gap-2 text-sm items-start">
-                                    <Avatar className="h-6 w-6 mt-1">
-                                        <AvatarImage src={cmt.userAvatar} />
-                                        <AvatarFallback><User size={12} /></AvatarFallback>
-                                    </Avatar>
-                                    <div className="bg-white dark:bg-slate-800 p-2 px-3 rounded-2xl shadow-sm flex-1">
-                                        <p className="font-bold text-[11px] text-blue-600">{cmt.userName}</p>
-                                        <p className="leading-tight text-foreground">{cmt.text}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {comments.length === 0 && (
-                                <p className="text-center text-xs text-muted-foreground py-2">No comments yet. Be the first!</p>
-                            )}
-                        </div>
-                        {user ? (
-                            <form onSubmit={handleSendComment} className="flex gap-2 items-center">
-                                <Input
-                                    placeholder="Write a comment..."
-                                    value={commentText}
-                                    onChange={(e) => setCommentText(e.target.value)}
-                                    className="flex-1 rounded-full bg-background h-9 text-sm"
-                                />
-                                <Button
-                                    type="submit"
-                                    size="icon"
-                                    disabled={!commentText.trim()}
-                                    className="rounded-full h-9 w-9"
-                                >
-                                    <Send size={14} />
-                                </Button>
-                            </form>
-                        ) : (
-                            <p className="text-[11px] text-center text-muted-foreground italic">Login to comment on this post.</p>
-                        )}
-                    </div>
-                )}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn("gap-2 transition-colors rounded-full", isBookmarked ? "text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10" : "text-muted-foreground hover:text-foreground")}
+                    onClick={handleBookmark}
+                >
+                    <Bookmark className={cn("h-4 w-4", isBookmarked && "fill-current")} />
+                </Button>
             </CardFooter>
+            {showComments && (
+                <div className="bg-muted/30 border-t border-border/50 p-4 space-y-4">
+                    <div className="max-h-60 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                        {comments.map((cmt) => (
+                            <div key={cmt.id} className="flex gap-2 items-start">
+                                <Avatar className="h-7 w-7 mt-0.5 shadow-sm">
+                                    <AvatarImage src={cmt.userAvatar} />
+                                    <AvatarFallback><User size={12} /></AvatarFallback>
+                                </Avatar>
+                                <div className="bg-background dark:bg-zinc-900 px-3 py-2 rounded-2xl flex-1 border border-border/50">
+                                    <p className="font-bold text-[12px] text-blue-600">@{cmt.userName.replace(/\s+/g, '').toLowerCase()}</p>
+                                    <p className="text-sm text-foreground leading-snug">{cmt.text}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {user ? (
+                        <form onSubmit={handleSendComment} className="flex gap-2 items-center">
+                            <Input
+                                placeholder="Write comment..."
+                                value={commentText}
+                                onChange={(e) => setCommentText(e.target.value)}
+                                className="flex-1 rounded-full bg-background border-border/50 h-9 text-sm focus-visible:ring-1"
+                            />
+                            <Button type="submit" size="icon" disabled={!commentText.trim()} className="rounded-full h-8 w-8 shrink-0">
+                                <Send size={14} />
+                            </Button>
+                        </form>
+                    ) : (
+                        <p className="text-center text-[11px] text-muted-foreground italic">Log in to comment.</p>
+                    )}
+                </div>
+            )}
         </Card>
     );
 }

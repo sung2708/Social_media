@@ -5,6 +5,7 @@ import Profile from "@/pages/user/Profile";
 import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
 import NotFound from "@/pages/NotFound";
+import BookmarksPage from "@/pages/user/BookMark";
 import { ROUTES } from "./path";
 import { ProtectedRoute, AuthRoute } from "@/components/routes/ProtectedRoute";
 
@@ -22,6 +23,14 @@ export const router = createBrowserRouter([
                 element: (
                     <ProtectedRoute>
                         <Profile />
+                    </ProtectedRoute>
+                ),
+            },
+            {
+                path: ROUTES.BOOKMARKS,
+                element: (
+                    <ProtectedRoute>
+                        <BookmarksPage />
                     </ProtectedRoute>
                 ),
             },
@@ -54,5 +63,5 @@ export const router = createBrowserRouter([
                 <Profile />
             </ProtectedRoute>
         ),
-    }
+    },
 ]);

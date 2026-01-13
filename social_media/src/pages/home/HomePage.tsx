@@ -5,6 +5,7 @@ import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { CreatePostModal } from "@/components/modals/CreatePostModal";
 import { PostCard } from "@/components/posts/PostCard";
 import type { Post } from "@/types/post";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 export default function HomePage() {
     const [posts, setPosts] = useState<Post[]>([]);
@@ -27,7 +28,6 @@ export default function HomePage() {
     return (
         <div className="max-w-2xl mx-auto py-10 px-4">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold italic">New feed</h1>
                 <CreatePostModal />
             </div>
 
@@ -42,6 +42,7 @@ export default function HomePage() {
                     )}
                 </div>
             )}
+            <ScrollToTopButton />
         </div>
     );
 }

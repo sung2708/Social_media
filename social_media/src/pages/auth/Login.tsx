@@ -8,6 +8,7 @@ import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { useShowToast } from "@/hooks/useToast";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 const loginSchema = z.object({
     email: z.string().email("Invalid email"),
@@ -20,7 +21,8 @@ export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
     const toast = useShowToast();
-
+    const location = useLocation();
+    const from = location.state?.from?.pathname || "/";
     const form = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
         defaultValues: {
@@ -33,7 +35,7 @@ export default function Login() {
         try {
             await login(data.email, data.password);
             toast({ title: "Login successful!", description: "You have successfully logged in.", variant: "success" });
-            navigate("/");
+            navigate(from, { replace: true });
         } catch (err: unknown) {
             console.error("Login error:", err);
             toast({
@@ -43,7 +45,7 @@ export default function Login() {
             });
         }
     };
-
+    
     return (
         <div className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-1 lg:px-0">
             <Link

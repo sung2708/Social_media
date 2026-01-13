@@ -4,6 +4,7 @@ import { ROUTES } from "@/routes/path";
 import React from "react";
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    
     const { user, isLoading } = useAuth();
     const location = useLocation();
     if (isLoading) {
