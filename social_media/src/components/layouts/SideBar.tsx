@@ -14,10 +14,6 @@ const navItems = [
 export function SidebarNav() {
     return (
         <nav className="flex flex-col gap-1 w-full">
-            <div className="mb-4 hidden lg:flex items-center gap-2 px-4 py-2">
-                <span className="text-xl font-black tracking-tighter text-gray-500">SOCIAL</span>
-            </div>
-
             {navItems.map((item) => (
                 <NavLink
                     key={item.label}

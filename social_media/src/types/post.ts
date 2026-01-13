@@ -7,6 +7,7 @@ export interface Post {
     authorName: string;
     authorAvatarUrl?: string;
     imageUrl?: string;
+    hashtags: string[];
     likes: number;
     comments: number;
     commentsCount: number;

@@ -18,7 +18,7 @@ import {
     collection, addDoc, serverTimestamp, query, orderBy, onSnapshot,
     setDoc, deleteDoc
 } from "firebase/firestore";
-
+import { useNavigate } from "react-router-dom";
 
 export function PostCard({ post }: { post: Post }) {
     const { user } = useAuth();
@@ -30,7 +30,7 @@ export function PostCard({ post }: { post: Post }) {
     const [isBookmarked, setIsBookmarked] = useState(false);
 
     const isLiked = user?.uid ? post.likedBy?.includes(user.uid) : false;
-
+    const navigate = useNavigate();
     useEffect(() => {
         if (!showComments) return;
         const q = query(collection(db, "posts", post.id, "comments"), orderBy("createdAt", "asc"));
@@ -119,6 +119,27 @@ export function PostCard({ post }: { post: Post }) {
             setCommentText("");
         } catch (error) { console.error(error); }
     };
+    const renderContent = (content: string) => {
+        const parts = content.split(/(#\w+)/g);
+        return parts.map((part, index) => {
+            if (part.startsWith("#")) {
+                return (
+                    <span
+                        key={index}
+                        className="text-blue-500 hover:underline cursor-pointer font-medium"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const tag = part.slice(1).toLowerCase();
+                            navigate(`/?tag=${tag}`);
+                        }}
+                    >
+                        {part}
+                    </span>
+                );
+            }
+            return part;
+        });
+    };
     return (
         <Card className="max-w-lg w-full border-border/50 bg-card/80 backdrop-blur-sm transition-all hover:bg-card mb-6 overflow-hidden">
 
@@ -161,14 +182,16 @@ export function PostCard({ post }: { post: Post }) {
 
             <CardContent className="pb-3">
                 {post.title && <h3 className="font-bold text-lg mb-1 text-foreground">{post.title}</h3>}
-                <p className="text-foreground leading-relaxed text-[15px] whitespace-pre-wrap">{post.content}</p>
+                <p className="text-foreground leading-relaxed text-[15px] whitespace-pre-wrap">
+                    {renderContent(post.content)}
+                </p>
 
                 {post.imageUrl && (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-border/50">
+                    <div className="mt-3 overflow-hidden rounded-xl border border-border/50 aspect-[4/3]">
                         <img
                             src={post.imageUrl}
                             alt="Post content"
-                            className="h-auto w-full object-cover transition-transform duration-500 hover:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
                         />
                     </div>
                 )}

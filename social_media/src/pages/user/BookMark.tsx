@@ -72,7 +72,7 @@ export default function BookmarksPage() {
                     Post Title <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
             ),
-            cell: ({ row }: import("@tanstack/react-table").CellContext<BookmarkRow, unknown>) => <div className="font-medium pl-4">{row.getValue("title") || "Untitled Post"}</div>,
+            cell: ({ row }: import("@tanstack/react-table").CellContext<BookmarkRow, unknown>) => <div className="font-medium pl-4">{row.getValue("title")}</div>,
         },
         {
             accessorKey: "savedAt",

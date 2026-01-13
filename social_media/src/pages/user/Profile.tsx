@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useShowToast } from "@/hooks/useToast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, deleteDoc, orderBy } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import type { Post } from "@/types/post";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -12,8 +12,9 @@ import { AlertModal } from "@/components/modals/AlertModal";
 import {
     flexRender,
     getCoreRowModel,
-    getPaginationRowModel,
     useReactTable,
+    type SortingState,
+    getSortedRowModel
 } from "@tanstack/react-table";
 import {
     Table,
@@ -36,13 +37,28 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function Profile() {
     const { user, logout, isLoading } = useAuth();
+    const [data, setData] = useState<Post[]>([]);
+    const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
     const toast = useShowToast();
     const navigate = useNavigate();
     const [myPosts, setMyPosts] = useState<Post[]>([]);
     const [postToDelete, setPostToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const isLoggingOut = useRef(false);
+    useEffect(() => {
+        const q = query(
+            collection(db, "posts"),
+            where("authorId", "==", user?.uid || ""),
+            orderBy("createdAt", "desc")
+        );
 
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const result = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+            setData(result);
+        });
+
+        return () => unsubscribe();
+    }, [user?.uid]);
     useEffect(() => {
         if (!user) return;
         const q = query(collection(db, "posts"), where("authorId", "==", user.uid));
@@ -91,7 +107,7 @@ export default function Profile() {
             header: "Post Content",
             cell: ({ row }) => (
                 <div className="flex flex-col gap-1 max-w-75">
-                    <span className="font-bold text-foreground truncate">{row.original.title || "Untitled"}</span>
+                    <span className="font-bold text-foreground truncate">{row.original.title}</span>
                     <span className="text-xs text-muted-foreground truncate line-clamp-1">{row.original.content}</span>
                 </div>
             ),
@@ -111,6 +127,15 @@ export default function Profile() {
                     </div>
                 </div>
             )
+        },
+        {
+            accessorKey: "createdAt",
+            header: "Date Published",
+            cell: ({ row }) => {
+                const createdAtValue = row.getValue("createdAt") as { toDate?: () => Date } | undefined;
+                const date = createdAtValue?.toDate ? createdAtValue.toDate() : null;
+                return <div className="text-muted-foreground">{date ? date.toLocaleString('vi-VN') : "Đang chờ..."}</div>
+            }
         },
         {
             id: "actions",
@@ -149,11 +174,12 @@ export default function Profile() {
     ];
 
     const table = useReactTable({
-        data: myPosts,
+        data,
         columns,
+        state: { sorting },
+        onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        initialState: { pagination: { pageSize: 5 } },
+        getSortedRowModel: getSortedRowModel(),
     });
 
     if (isLoading || (!user && !isLoggingOut.current)) {
