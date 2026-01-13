@@ -21,7 +21,6 @@ import {
 } from "firebase/firestore";
 import { useDebounce } from "@/hooks/useDebounce";
 import imageCompression from 'browser-image-compression';
-import { tr } from "zod/v4/locales";
 import heic2any from "heic2any";
 
 export function CreatePostModal() {

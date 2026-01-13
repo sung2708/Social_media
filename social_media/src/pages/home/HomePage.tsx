@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom"; // Thêm useNavigate
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, where } from "firebase/firestore";
 import { CreatePostModal } from "@/components/modals/CreatePostModal";
@@ -17,14 +17,18 @@ export default function HomePage() {
     const navigate = useNavigate();
     const tagFilter = searchParams.get("tag");
 
-    const useScrollToTop = () => {
-        useEffect(() => {
-            window.scrollTo(0, 0);
-        }, []);
-    };
+    useEffect(() => {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+    }, [tagFilter]);
+
     useEffect(() => {
         const postsRef = collection(db, "posts");
         let q;
+
+        setLoading(true);
 
         if (tagFilter) {
             q = query(
@@ -57,17 +61,17 @@ export default function HomePage() {
                 <CreatePostModal />
             </div>
             {tagFilter && (
-                <div className="max-w-lg w-full mb-6 flex items-center justify-between bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl">
-                    <p className="text-blue-500 font-medium flex-1">
-                        Showing posts with: <span className="text-blue-700 font-black">#{tagFilter}</span>
+                <div className="mb-6 flex items-center justify-between bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl shadow-sm">
+                    <p className="text-blue-600 font-medium">
+                        Viewing posts with tag: <span className="text-blue-700 font-black">#{tagFilter}</span>
                     </p>
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="hover:bg-blue-500/20 text-blue-600 rounded-full"
+                        className="hover:bg-blue-500/20 text-blue-600 rounded-full h-8"
                         onClick={() => navigate("/")}
                     >
-                        <X size={16} className="mr-1" /> Clear
+                        <X size={16} className="mr-1" /> Clear Filter
                     </Button>
                 </div>
             )}
@@ -75,7 +79,7 @@ export default function HomePage() {
             {loading ? (
                 <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-40 w-full bg-muted animate-pulse rounded-2xl" />
+                        <div key={i} className="h-64 w-full bg-muted animate-pulse rounded-2xl" />
                     ))}
                 </div>
             ) : (
@@ -83,8 +87,10 @@ export default function HomePage() {
                     {posts.length > 0 ? (
                         posts.map((post) => <PostCard key={post.id} post={post} />)
                     ) : (
-                        <div className="text-center py-20 border border-dashed rounded-2xl">
-                            <p className="text-muted-foreground">No posts found with #{tagFilter}</p>
+                        <div className="text-center py-20 border border-dashed border-border/60 rounded-2xl bg-muted/20">
+                            <p className="text-muted-foreground font-medium">
+                                No posts found with #{tagFilter}
+                            </p>
                         </div>
                     )}
                 </div>
