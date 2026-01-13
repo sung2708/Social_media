@@ -20,6 +20,9 @@ import {
     serverTimestamp, query, where, getDocs, limit
 } from "firebase/firestore";
 import { useDebounce } from "@/hooks/useDebounce";
+import imageCompression from 'browser-image-compression';
+import { tr } from "zod/v4/locales";
+import heic2any from "heic2any";
 
 export function CreatePostModal() {
     const [open, setOpen] = useState(false);
@@ -48,7 +51,7 @@ export function CreatePostModal() {
 
         const words = value.split(/\s/);
         const lastWord = words[words.length - 1] || "";
-        
+
         if (lastWord.startsWith("#") && lastWord.length > 1) {
             setCurrentTag(lastWord.slice(1).toLowerCase());
         } else {
@@ -79,15 +82,46 @@ export function CreatePostModal() {
         fetchTags();
     }, [debouncedTag]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            if (!file.type.startsWith("image/")) {
-                toast({ title: "Error", description: "Please select an image file.", variant: "destructive" });
-                return;
+        if (!file) return;
+        setUploading(true);
+
+        try {
+            let fileToProcess = file;
+            if (file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic")) {
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: "image/jpeg",
+                    quality: 0.8,
+                });
+
+                fileToProcess = new File(
+                    [Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob],
+                    file.name.replace(/\.[^/.]+$/, ".jpg"),
+                    { type: "image/jpeg" }
+                );
             }
-            const url = URL.createObjectURL(file);
-            setPreviewUrl(url);
+
+            const options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1080,
+                useWebWorker: true,
+                initialQuality: 0.7
+            };
+            const compressedFile = await imageCompression(fileToProcess, options);
+            const preview = URL.createObjectURL(compressedFile);
+            setPreviewUrl(preview);
+
+        } catch (error) {
+            console.error("Error", error);
+            toast({
+                title: "Image Error",
+                description: "Cannot process this image. Please try a different one.",
+                variant: "destructive"
+            });
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -170,7 +204,7 @@ export function CreatePostModal() {
     return (
         <Dialog open={open} onOpenChange={(val) => {
             setOpen(val);
-            if(!val) { setSuggestions([]); setCurrentTag(""); }
+            if (!val) { setSuggestions([]); setCurrentTag(""); }
         }}>
             <DialogTrigger asChild>
                 {user ? (

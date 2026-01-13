@@ -17,6 +17,11 @@ export default function HomePage() {
     const navigate = useNavigate();
     const tagFilter = searchParams.get("tag");
 
+    const useScrollToTop = () => {
+        useEffect(() => {
+            window.scrollTo(0, 0);
+        }, []);
+    };
     useEffect(() => {
         const postsRef = collection(db, "posts");
         let q;
