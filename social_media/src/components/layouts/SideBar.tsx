@@ -2,13 +2,14 @@
 
 import { NavLink } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Home, User, Bookmark } from "lucide-react"
+import { Home, User, Bookmark, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
     { icon: Home, label: "Home", path: "/" },
     { icon: Bookmark, label: "Bookmarks", path: "/bookmarks" },
     { icon: User, label: "Profile", path: "/profile" },
+    { icon: Search, label: "Search", path: "/search" },
 ]
 
 export function SidebarNav() {

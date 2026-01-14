@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useShowToast } from "@/hooks/useToast";
 import { postSchema } from "@/schema/post";
 import type { PostFormValues } from "@/schema/post";
-import { Image as ImageIcon, User, X, Hash } from "lucide-react";
+import { Image as ImageIcon, User, X, Hash, Plus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormControl, FormMessage } from "@/components/ui/form";
@@ -23,7 +23,11 @@ import { useDebounce } from "@/hooks/useDebounce";
 import imageCompression from 'browser-image-compression';
 import heic2any from "heic2any";
 
-export function CreatePostModal() {
+interface CreatePostModalProps {
+    isIconButton?: boolean;
+}
+
+export function CreatePostModal({ isIconButton = false }: CreatePostModalProps) {
     const [open, setOpen] = useState(false);
     const { user, isAuthenticated } = useAuth();
     const toast = useShowToast();
@@ -206,7 +210,11 @@ export function CreatePostModal() {
             if (!val) { setSuggestions([]); setCurrentTag(""); }
         }}>
             <DialogTrigger asChild>
-                {user ? (
+                {isIconButton ? (
+                    <Button variant="ghost" size="icon" className="rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow-lg">
+                        <Plus size={24} />
+                    </Button>
+                ) : user ? (
                     <Card className="max-w-lg w-full cursor-pointer border-border/50 bg-card/80 backdrop-blur-sm transition-all hover:bg-card mb-6 overflow-hidden">
                         <CardHeader className="py-4 px-6">
                             <div className="flex items-center space-x-3">
