@@ -72,9 +72,6 @@ export default function Navbar() {
                             <Link to="/login" state={{ from: location }} replace>Login</Link>
                         </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="md:hidden">
-                        <Menu className="h-5 w-5" />
-                    </Button>
                 </div>
             </div>
         </header>
