@@ -43,7 +43,7 @@ export default function MainLayout() {
                 <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
                     <Home className="h-6 w-6" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => navigate("/trending")}>
+                <Button variant="ghost" size="icon" onClick={() => navigate("/search")}>
                     <Search className="h-6 w-6" />
                 </Button>
                 <CreatePostModal isIconButton />

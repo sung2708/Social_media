@@ -6,14 +6,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useShowToast } from "@/hooks/useToast";
 import { postSchema } from "@/schema/post";
 import type { PostFormValues } from "@/schema/post";
-import { Image as ImageIcon, User, X, Hash, Plus } from "lucide-react";
+import { Image as ImageIcon, X, Hash, Plus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormControl, FormMessage } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
 import {
     writeBatch, doc, collection, increment,
@@ -219,9 +219,8 @@ export function CreatePostModal({ isIconButton = false }: CreatePostModalProps) 
                         <CardHeader className="py-4 px-6">
                             <div className="flex items-center space-x-3">
                                 <Avatar className="h-10 w-10 border-2 border-primary/20 transition-transform hover:scale-105">
-                                    <AvatarImage src={user.photoURL || ""} alt={user.email || "User"} className="object-cover" />
                                     <AvatarFallback className="bg-secondary text-secondary-foreground">
-                                        {user.email?.slice(0, 2).toUpperCase()}
+                                        {(user?.email?.slice(0, 2).toUpperCase()) || ""}
                                     </AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
@@ -244,7 +243,7 @@ export function CreatePostModal({ isIconButton = false }: CreatePostModalProps) 
                 )}
             </DialogTrigger>
 
-            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 p-0 overflow-hidden shadow-2xl sm:max-w-[600px]">
+            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 p-0 overflow-hidden shadow-2xl sm:max-w-150">
                 <DialogHeader className="p-4 border-b border-border/50">
                     <DialogTitle>Create new post</DialogTitle>
                     <DialogDescription className="hidden">Post creation form with hashtag support</DialogDescription>
@@ -252,8 +251,9 @@ export function CreatePostModal({ isIconButton = false }: CreatePostModalProps) 
 
                 <div className="flex gap-4 p-4">
                     <Avatar className="h-10 w-10 border-2 border-primary/20">
-                        <AvatarImage src={user?.photoURL || ""} className="object-cover" />
-                        <AvatarFallback><User size={20} /></AvatarFallback>
+                        <AvatarFallback className="bg-secondary text-secondary-foreground">
+                            {(user?.email?.slice(0, 2).toUpperCase()) || ""}
+                        </AvatarFallback>
                     </Avatar>
 
                     <Form {...form}>
@@ -278,38 +278,39 @@ export function CreatePostModal({ isIconButton = false }: CreatePostModalProps) 
                                 control={form.control}
                                 name="content"
                                 render={({ field }) => (
-                                    <FormItem className="relative">
+                                    <FormItem className="relative flex flex-col">
                                         <FormControl>
                                             <Textarea
-                                                rows={4}
                                                 placeholder="What's on your mind? Use # to add tags"
-                                                className="border-none text-base resize-none px-2 py-2 focus-visible:ring-0 bg-transparent text-foreground placeholder:text-muted-foreground"
+                                                className="border-none text-base md:text-lg resize-none px-2 py-2 focus-visible:ring-0 bg-transparent text-foreground placeholder:text-muted-foreground min-h-[150px] max-h-[300px] overflow-y-auto custom-scrollbar"
                                                 {...field}
                                                 onChange={(e) => handleContentChange(e, field.onChange)}
                                             />
                                         </FormControl>
-
                                         {suggestions.length > 0 && (
-                                            <div className="absolute left-0 bottom-full mb-2 w-56 bg-card border border-border/50 rounded-xl shadow-2xl z-[100] overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="absolute left-0 top-full z-[110] mt-1 w-full sm:w-64 bg-card border border-border/50 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
                                                 <div className="p-2 border-b border-border/50 bg-muted/30 flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                                                    <Hash size={10} /> Suggested Tags
+                                                    <Hash size={12} className="text-primary" /> Suggested Tags
                                                 </div>
-                                                {suggestions.map((tag) => (
-                                                    <button
-                                                        key={tag}
-                                                        type="button"
-                                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 hover:text-primary transition-colors font-medium flex items-center justify-between"
-                                                        onClick={() => {
-                                                            const words = field.value.split(/\s/);
-                                                            words.pop();
-                                                            const newValue = [...words, `#${tag} `].join(" ");
-                                                            field.onChange(newValue);
-                                                            setSuggestions([]);
-                                                        }}
-                                                    >
-                                                        #{tag}
-                                                    </button>
-                                                ))}
+                                                <div className="max-h-50 overflow-y-auto">
+                                                    {suggestions.map((tag) => (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            className="w-full text-left px-4 py-3 text-sm hover:bg-primary/10 hover:text-primary transition-colors font-semibold flex items-center justify-between border-b border-border/10 last:border-none"
+                                                            onClick={() => {
+                                                                const words = field.value.split(/\s/);
+                                                                words.pop();
+                                                                const newValue = [...words, `#${tag} `].join(" ");
+                                                                field.onChange(newValue);
+                                                                setSuggestions([]);
+                                                            }}
+                                                        >
+                                                            <span className="text-blue-500">#{tag}</span>
+                                                            <span className="text-[10px] text-muted-foreground font-normal">Tap to select</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                         <FormMessage className="text-xs px-2" />

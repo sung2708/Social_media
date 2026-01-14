@@ -9,6 +9,7 @@ import type { Post } from "@/types/post";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { useScrollToTop } from "@/hooks/useScrollToTop";
 
 export default function HomePage() {
     const [posts, setPosts] = useState<Post[]>([]);
@@ -17,18 +18,15 @@ export default function HomePage() {
     const navigate = useNavigate();
     const tagFilter = searchParams.get("tag");
 
+    const { scrollToTop } = useScrollToTop();
+
     useEffect(() => {
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        });
-    }, [tagFilter]);
+        scrollToTop();
+    }, [tagFilter, scrollToTop]);
 
     useEffect(() => {
         const postsRef = collection(db, "posts");
         let q;
-
-        setLoading(true);
 
         if (tagFilter) {
             q = query(
@@ -95,7 +93,9 @@ export default function HomePage() {
                     )}
                 </div>
             )}
-            <ScrollToTopButton />
+            <div className="hidden md:block">
+                <ScrollToTopButton />
+            </div>
         </div>
     );
 }

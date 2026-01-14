@@ -2,6 +2,9 @@
 import { useState, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useScrollToTop } from "@/hooks/useScrollToTop";
+
+
 
 export default function ScrollToTopButton() {
     const [isVisible, setIsVisible] = useState(false);
@@ -19,12 +22,8 @@ export default function ScrollToTopButton() {
         return () => window.removeEventListener("scroll", toggleVisibility);
     }, []);
 
-    const scrollToTop = () => {
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth",
-        });
-    };
+    const { scrollToTop } = useScrollToTop();
+    
 
     return (
         <button

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore"; // Sử dụng onSnapshot để cập nhật Realtime
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { PostCard } from "@/components/posts/PostCard";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Loader2 } from "lucide-react";
 import type { Post } from "@/types/post";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden"; // Để ẩn Title cho đúng chuẩn Accessibility
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 export function ViewPostDialog({ postId }: { postId: string }) {
     const [post, setPost] = useState<Post | null>(null);
@@ -19,7 +19,6 @@ export function ViewPostDialog({ postId }: { postId: string }) {
         let unsubscribe: () => void;
 
         if (open && postId) {
-            setLoading(true);
             const docRef = doc(db, "posts", postId);
             
             unsubscribe = onSnapshot(docRef, 

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,7 +8,10 @@ import { db } from "@/lib/firebase";
 import { postSchema, type PostFormValues } from "@/schema/post";
 import { useShowToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Image as ImageIcon, X, Hash } from "lucide-react";
+import { Image as ImageIcon, X, Loader2 } from "lucide-react";
+import imageCompression from 'browser-image-compression';
+import heic2any from "heic2any";
+
 import {
     Dialog,
     DialogContent,
@@ -25,10 +30,10 @@ export function EditPostDialog({ post }: { post: Post }) {
     const [open, setOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(post.imageUrl || null);
+    const [compressedFile, setCompressedFile] = useState<File | Blob | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const toast = useShowToast();
 
-    // Hashtag States
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [currentTag, setCurrentTag] = useState("");
     const debouncedTag = useDebounce(currentTag, 400);
@@ -71,28 +76,41 @@ export function EditPostDialog({ post }: { post: Post }) {
         fetchTags();
     }, [debouncedTag]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            setPreviewUrl(url);
-        }
-    };
+        if (!file) return;
+        setUploading(true);
 
-    const extractHashtags = (text: string) => {
-        const hashtags = text.match(/#(\w+)/g);
-        return hashtags ? Array.from(new Set(hashtags.map(t => t.slice(1).toLowerCase()))) : [];
+        try {
+            let fileToProcess = file;
+            if (file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic")) {
+                const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.7 });
+                fileToProcess = new File(
+                    [Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob],
+                    file.name.replace(/\.[^/.]+$/, ".jpg"),
+                    { type: "image/jpeg" }
+                );
+            }
+            const options = { maxSizeMB: 0.8, maxWidthOrHeight: 1280, useWebWorker: true };
+            const compressed = await imageCompression(fileToProcess, options);
+            setCompressedFile(compressed);
+            setPreviewUrl(URL.createObjectURL(compressed));
+        } catch (error) {
+            console.error("Image processing error:", error);
+            toast({ title: "Error", description: "Image process failed", variant: "destructive" });
+        } finally {
+            setUploading(false);
+        }
     };
 
     const onSubmit = async (data: PostFormValues) => {
         setUploading(true);
         try {
             let finalImageUrl = data.imageUrl;
-            const file = fileInputRef.current?.files?.[0];
 
-            if (file) {
+            if (compressedFile) {
                 const formData = new FormData();
-                formData.append("file", file);
+                formData.append("file", compressedFile);
                 formData.append("upload_preset", UPLOAD_PRESET);
                 const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
                     method: "POST", body: formData
@@ -102,7 +120,7 @@ export function EditPostDialog({ post }: { post: Post }) {
             }
 
             const batch = writeBatch(db);
-            const newHashtags = extractHashtags(data.content);
+            const newHashtags = Array.from(new Set(data.content.match(/#(\w+)/g)?.map(t => t.slice(1).toLowerCase()) || []));
             const oldHashtags = post.hashtags || [];
 
             const postRef = doc(db, "posts", post.id);
@@ -112,6 +130,7 @@ export function EditPostDialog({ post }: { post: Post }) {
                 hashtags: newHashtags,
                 updatedAt: serverTimestamp(),
             });
+
             const addedTags = newHashtags.filter(tag => !oldHashtags.includes(tag));
             addedTags.forEach(tag => {
                 const tagRef = doc(db, "hashtags", tag);
@@ -122,7 +141,7 @@ export function EditPostDialog({ post }: { post: Post }) {
             toast({ title: "Updated", description: "Post updated successfully!", variant: "success" });
             setOpen(false);
         } catch (error) {
-            console.error("Error updating post:", error);
+            console.error("Update post error:", error);
             toast({ variant: "destructive", title: "Error", description: "Failed to update post" });
         } finally {
             setUploading(false);
@@ -132,82 +151,96 @@ export function EditPostDialog({ post }: { post: Post }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 rounded-full border-border/50 hover:bg-accent text-xs">
+                <Button variant="outline" size="sm" className="h-9 md:h-8 rounded-xl md:rounded-full border-border/50 hover:bg-accent text-xs font-bold">
                     Edit
                 </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 p-0 overflow-hidden shadow-2xl sm:max-w-[550px]">
-                <DialogHeader className="p-4 border-b border-border/50">
-                    <DialogTitle>Edit Post</DialogTitle>
-                    <DialogDescription className="hidden">Update your post content and media</DialogDescription>
+            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 p-0 overflow-hidden shadow-2xl w-[95vw] max-w-137.5 max-h-[90vh] flex flex-col rounded-3xl sm:rounded-2xl">
+                <DialogHeader className="p-4 border-b border-border/50 shrink-0">
+                    <DialogTitle className="text-center sm:text-left">Edit Post</DialogTitle>
+                    <DialogDescription className="hidden">Update your content</DialogDescription>
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="p-4 space-y-4">
-                        <FormField control={form.control} name="title" render={({ field }) => (
-                            <FormItem>
-                                <FormControl>
-                                    <Input placeholder="Title (optional)" className="border-none text-lg font-bold px-0 focus-visible:ring-0 bg-transparent" {...field} />
-                                </FormControl>
-                            </FormItem>
-                        )} />
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                            <FormField control={form.control} name="title" render={({ field }) => (
+                                <FormItem>
+                                    <FormControl>
+                                        <Input
+                                            placeholder="Title (optional)"
+                                            className="border-none text-lg font-bold px-0 focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )} />
 
-                        <FormField control={form.control} name="content" render={({ field }) => (
-                            <FormItem className="relative">
-                                <FormControl>
-                                    <Textarea
-                                        rows={5}
-                                        placeholder="What's on your mind?"
-                                        className="border-none text-base resize-none px-0 focus-visible:ring-0 bg-transparent"
-                                        {...field}
-                                        onChange={(e) => handleContentChange(e, field.onChange)}
-                                    />
-                                </FormControl>
-                                {suggestions.length > 0 && (
-                                    <div className="absolute left-0 bottom-full mb-2 w-56 bg-card border border-border/50 rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
-                                        <div className="p-2 border-b border-border/50 bg-muted/30 flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground">
-                                            <Hash size={10} /> Suggested Tags
+                            <FormField control={form.control} name="content" render={({ field }) => (
+                                <FormItem className="relative">
+                                    <FormControl>
+                                        <Textarea
+                                            rows={6}
+                                            placeholder="What's on your mind?"
+                                            className="border-none text-base md:text-sm resize-none px-0 focus-visible:ring-0 bg-transparent min-h-30"
+                                            {...field}
+                                            onChange={(e) => handleContentChange(e, field.onChange)}
+                                        />
+                                    </FormControl>
+                                    {suggestions.length > 0 && (
+                                        <div className="absolute left-0 top-full mb-2 w-full sm:w-56 bg-card border border-border/50 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="p-2 border-b border-border/50 bg-muted/30 text-[10px] uppercase font-black text-muted-foreground">Suggested Tags</div>
+                                            {suggestions.map((tag) => (
+                                                <button key={tag} type="button" className="w-full text-left px-4 py-3 text-sm hover:bg-primary/10 transition-colors font-bold text-blue-500"
+                                                    onClick={() => {
+                                                        const words = field.value.split(/\s/);
+                                                        words.pop();
+                                                        field.onChange([...words, `#${tag} `].join(" "));
+                                                        setSuggestions([]);
+                                                    }}>#{tag}</button>
+                                            ))}
                                         </div>
-                                        {suggestions.map((tag) => (
-                                            <button key={tag} type="button" className="w-full text-left px-4 py-2 text-sm hover:bg-primary/10 transition-colors font-medium text-blue-500"
-                                                onClick={() => {
-                                                    const words = field.value.split(/\s/);
-                                                    words.pop();
-                                                    field.onChange([...words, `#${tag} `].join(" "));
-                                                    setSuggestions([]);
-                                                }}>#{tag}</button>
-                                        ))}
-                                    </div>
-                                )}
-                            </FormItem>
-                        )} />
+                                    )}
+                                </FormItem>
+                            )} />
 
-                        {previewUrl && (
-                            <div className="relative rounded-xl overflow-hidden border border-border/50 bg-muted/30">
-                                <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-60 object-contain" />
-                                <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 rounded-full"
-                                    onClick={() => { setPreviewUrl(null); form.setValue("imageUrl", ""); }}>
-                                    <X size={14} />
-                                </Button>
-                            </div>
-                        )}
+                            {previewUrl && (
+                                <div className="relative rounded-2xl overflow-hidden border border-border/50 bg-muted/30 group">
+                                    <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-72 object-contain bg-black/5" />
+                                    <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-lg"
+                                        onClick={() => { setPreviewUrl(null); setCompressedFile(null); form.setValue("imageUrl", ""); }}>
+                                        <X size={16} />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-border/50 bg-muted/20 shrink-0 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+                                    <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-blue-500 hover:bg-blue-500/10 rounded-full" onClick={() => fileInputRef.current?.click()}>
+                                        <ImageIcon size={22} />
+                                    </Button>
+                                    <FormField control={form.control} name="imageUrl" render={({ field }) => (
+                                        <Input
+                                            placeholder="Image URL..."
+                                            className="h-9 text-xs border-border/40 bg-background/50 rounded-full w-32 md:w-40"
+                                            {...field}
+                                            onChange={(e) => { field.onChange(e); setPreviewUrl(e.target.value); }}
+                                        />
+                                    )} />
+                                </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                            <div className="flex items-center gap-2">
-                                <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
-                                <Button type="button" variant="ghost" size="icon" className="text-blue-500 hover:bg-blue-500/10 rounded-full" onClick={() => fileInputRef.current?.click()}>
-                                    <ImageIcon size={20} />
-                                </Button>
-                                <FormField control={form.control} name="imageUrl" render={({ field }) => (
-                                    <Input placeholder="Image URL" className="h-8 text-xs border-none bg-transparent w-40" {...field} onChange={(e) => { field.onChange(e); setPreviewUrl(e.target.value); }} />
-                                )} />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="rounded-full">Cancel</Button>
-                                <Button type="submit" disabled={uploading} className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 font-bold">
-                                    {uploading ? "Saving..." : "Save Changes"}
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="rounded-full hidden sm:flex">Cancel</Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={uploading}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 h-10 font-bold transition-all shadow-md shadow-blue-500/20 disabled:opacity-50"
+                                    >
+                                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </form>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Heart, MessageCircle, User, Send, CheckCircle2,
     Bookmark
@@ -28,6 +28,30 @@ export function PostCard({ post }: { post: Post }) {
     const [commentText, setCommentText] = useState("");
     const [comments, setComments] = useState<Comment[]>([]);
     const [isBookmarked, setIsBookmarked] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const postRef = useRef<HTMLDivElement>(null);
+    const MAX_CONTENT_LENGTH = 300;
+    const isLongContent = post.content.length > MAX_CONTENT_LENGTH;
+
+
+    const handleToggleExpand = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (isExpanded) {
+
+            postRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        setIsExpanded(!isExpanded);
+    };
+
+    const getDisplayContent = () => {
+        if (isExpanded || !isLongContent) {
+            return renderContent(post.content);
+        }
+        const truncated = post.content.slice(0, MAX_CONTENT_LENGTH);
+        return renderContent(truncated);
+    };
 
     const isLiked = user?.uid ? post.likedBy?.includes(user.uid) : false;
     const navigate = useNavigate();
@@ -102,21 +126,41 @@ export function PostCard({ post }: { post: Post }) {
             setLikesCount(post.likes || 0);
         }
     };
+    useEffect(() => {
+        if (!showComments) return;
 
+        const q = query(
+            collection(db, "posts", post.id, "comments"),
+            orderBy("createdAt", "asc")
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const newComments = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Comment));
+            setComments(newComments);
+        });
+
+        return () => unsubscribe();
+    }, [showComments, post.id]);
     const handleSendComment = async (e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!commentText.trim() || !user) return;
+        const currentScroll = window.scrollY;
         try {
             const commentData = {
                 text: commentText,
                 userId: user.uid,
-                userName: user.displayName || "User",
+                userEmail: user.email || "Unknown",
                 userAvatar: user.photoURL || "",
                 createdAt: serverTimestamp(),
             };
             await addDoc(collection(db, "posts", post.id, "comments"), commentData);
             await updateDoc(doc(db, "posts", post.id), { commentsCount: increment(1) });
             setCommentText("");
+            window.scrollTo({ top: currentScroll, behavior: 'instant' })
         } catch (error) { console.error(error); }
     };
     const renderContent = (content: string) => {
@@ -146,7 +190,6 @@ export function PostCard({ post }: { post: Post }) {
             <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
                 <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10 border-2 border-primary/20 transition-transform hover:scale-105">
-                        <AvatarImage src={post.authorAvatarUrl} alt={post.authorName} className="object-cover" />
                         <AvatarFallback className="bg-secondary text-secondary-foreground">
                             {post.authorName?.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
@@ -181,20 +224,41 @@ export function PostCard({ post }: { post: Post }) {
             </CardHeader>
 
             <CardContent className="pb-3">
-                {post.title && <h3 className="font-bold text-lg mb-1 text-foreground">{post.title}</h3>}
-                <p className="text-foreground leading-relaxed text-[15px] whitespace-pre-wrap">
-                    {renderContent(post.content)}
-                </p>
+                <div className="space-y-3">
+                    {post.title && (
+                        <h3 className="font-bold text-lg mb-1 text-foreground">
+                            {post.title}
+                        </h3>
+                    )}
+                    <div ref={postRef} className="text-foreground leading-relaxed text-[15px] whitespace-pre-wrap wrap-break-words">
+                        {getDisplayContent()}
 
-                {post.imageUrl && (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-border/50 aspect-[4/3]">
-                        <img
-                            src={post.imageUrl}
-                            alt="Post content"
-                            className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                        />
+                        {!isExpanded && isLongContent && (
+                            <span className="text-muted-foreground">... </span>
+                        )}
+
+                        {isLongContent && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleExpand(e)
+                                }}
+                                className="text-black-500 font-semibold hover:underline ml-1 focus:outline-none"
+                            >
+                                {isExpanded ? "Hide" : "Read more"}
+                            </button>
+                        )}
                     </div>
-                )}
+                    {post.imageUrl && (
+                        <div className="mt-3 overflow-hidden rounded-xl border border-border/50 aspect-video md:aspect-4/3">
+                            <img
+                                src={post.imageUrl}
+                                alt="Post content"
+                                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                            />
+                        </div>
+                    )}
+                </div>
             </CardContent>
 
             <CardFooter className="flex items-center justify-between border-t border-border/50 pt-3 px-4 pb-4">
@@ -239,7 +303,28 @@ export function PostCard({ post }: { post: Post }) {
                                     <AvatarFallback><User size={12} /></AvatarFallback>
                                 </Avatar>
                                 <div className="bg-background dark:bg-zinc-900 px-3 py-2 rounded-2xl flex-1 border border-border/50">
-                                    <p className="font-bold text-[12px] text-blue-600">@{cmt.userName.replace(/\s+/g, '').toLowerCase()}</p>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-foreground text-sm hover:underline cursor-pointer">{cmt.userEmail}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {cmt.createdAt
+                                                ? (typeof cmt.createdAt.toDate === 'function'
+                                                    ? cmt.createdAt.toDate()
+                                                    : new Date(
+                                                        typeof cmt.createdAt === 'string' || typeof cmt.createdAt === 'number'
+                                                            ? cmt.createdAt
+                                                            : ""
+                                                    )
+                                                ).toLocaleString('vi-VN', {
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })
+                                                : "Now"
+                                            }
+                                        </span>
+                                    </div>
                                     <p className="text-sm text-foreground leading-snug">{cmt.text}</p>
                                 </div>
                             </div>
