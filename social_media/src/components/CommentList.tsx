@@ -28,7 +28,7 @@ export function CommentList({ postId }: { postId: string }) {
                     id: doc.id,
                     text: data.text,
                     userId: data.userId,
-                    userName: data.userName,
+                    userEmail: data.userEmail,
                     userAvatar: data.userAvatar,
                     createdAt: data.createdAt,
                 } as Comment;
@@ -52,7 +52,7 @@ export function CommentList({ postId }: { postId: string }) {
                         </Avatar>
                         <div className="flex-1">
                             <div className="flex justify-between items-center">
-                                <p className="font-bold text-sm">{cmt.userName}</p>
+                                <p className="font-bold text-sm">{cmt.userEmail}</p>
                                 <span className="text-xs text-muted-foreground">
                                     {isToDateObject(cmt.createdAt)
                                         ? cmt.createdAt.toDate().toLocaleString('vi-VN', {
